@@ -26,7 +26,7 @@ function parseRequest(url) {
 
 // Development only: replay recorded tracks so the page can be built without network access.
 async function fixtureSession({ favorites, target }, log) {
-  const tracks = JSON.parse(readFileSync(process.env.CADENCE_FIXTURE, 'utf8'));
+  const tracks = JSON.parse(readFileSync(process.env.SECONDWIND_FIXTURE, 'utf8'));
   const artists = [...new Set(tracks.map(t => t.artist))];
   log({ stage: 'taste', text: `Asking Qloo who else fans of ${favorites.join(' and ')} love` });
   await new Promise(r => setTimeout(r, 600));
@@ -49,7 +49,7 @@ async function streamSession(req, res, url) {
   running++;
   try {
     const log = e => send('progress', e);
-    const result = process.env.CADENCE_FIXTURE
+    const result = process.env.SECONDWIND_FIXTURE
       ? await fixtureSession(parsed, log)
       : await buildSession({ ...parsed, log });
     // Send only what the page needs; previews are short-lived signed links.
@@ -82,4 +82,4 @@ createServer((req, res) => {
   if (url.pathname === '/api/session') return streamSession(req, res, url);
   if (url.pathname === '/healthz') { res.writeHead(200); return res.end('ok'); }
   return serveStatic(res, url.pathname);
-}).listen(PORT, () => console.log(`Listening on http://localhost:${PORT}${process.env.CADENCE_FIXTURE ? ' (fixture mode)' : ''}`));
+}).listen(PORT, () => console.log(`Listening on http://localhost:${PORT}${process.env.SECONDWIND_FIXTURE ? ' (fixture mode)' : ''}`));

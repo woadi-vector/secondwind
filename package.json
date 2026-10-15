@@ -1,1 +1,1 @@
-{"type":"module","name":"cadence","private":true,"dependencies":{"mpg123-decoder":"^1.0.0"}}
+{"type":"module","name":"secondwind","private":true,"engines":{"node":">=22"},"scripts":{"start":"node server.js"},"dependencies":{"mpg123-decoder":"^1.0.0"}}
