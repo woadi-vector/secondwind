@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence</title>
+<meta name="description" content="Walking music built from the songs someone already loves, set to the pace their steps need.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2315233B%22/%3E%3Cpath d=%22M6 24 14 8h5l-8 16zM16 24l8-16h3l-8 16z%22 fill=%22%23F4C430%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #15233B;
+    --paper: #EEF2F1;
+    --surface: #FFFFFF;
+    --tape: #F4C430;
+    --line: #C7D0D4;
+    --muted: #4F5E69;
+    --ok: #2E6B4F;
+    --focus: #1D5FD1;
+    --beat: 0.6s;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 20px; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; line-height: 1.5;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+  /* The floor-tape stripe: therapists tape lines like this on the floor as stepping cues. */
+  .tape {
+    height: 18px; border-radius: 3px;
+    background: repeating-linear-gradient(-45deg, var(--tape) 0 18px, var(--ink) 18px 36px);
+    background-size: 50.9px 18px;
+  }
+  .tape.moving { animation: step var(--beat) steps(1) infinite; }
+  @keyframes step { 50% { background-position: 25.45px 0; } }
+  @media (prefers-reduced-motion: reduce) { .tape.moving { animation: none; } }
+
+  header { margin-bottom: 40px; }
+  .brand { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.01em; margin: 0 0 20px; display: flex; align-items: center; gap: 12px; }
+  .brand .tape { width: 56px; height: 14px; }
+  h1 { font-size: 2.3rem; line-height: 1.12; margin: 0 0 14px; max-width: 18ch; }
+  .lede { font-size: 1.05rem; color: var(--muted); margin: 0; max-width: 34em; }
+
+  section.ask { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 28px; margin-bottom: 20px; }
+  h2 { font-size: 1.3rem; margin: 0 0 6px; }
+  .hint { color: var(--muted); margin: 0 0 18px; font-size: 0.95rem; }
+
+  /* Favorites */
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 8px 8px 8px 18px; font-weight: 700; }
+  .chip button { border: 0; background: transparent; width: 36px; height: 36px; border-radius: 50%; font-size: 1.2rem; line-height: 1; }
+  .chip button:hover { background: var(--line); }
+  .add { display: flex; gap: 10px; }
+  .add input { flex: 1; min-width: 0; font: inherit; padding: 12px 16px; border: 2px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+  .add input:focus { border-color: var(--ink); outline: none; }
+  .btn-quiet { border: 2px solid var(--ink); background: transparent; border-radius: 8px; padding: 10px 20px; font-weight: 700; }
+
+  /* Pace */
+  .pace { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: stretch; }
+  .tap-pad {
+    border: 2px solid var(--ink); background: var(--surface); border-radius: 10px; padding: 22px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 18px; text-align: left; min-height: 210px;
+    touch-action: manipulation; user-select: none;
+  }
+  .tap-pad:active { background: #FFF7D9; }
+  .tap-label { font-weight: 700; font-size: 1.05rem; }
+  .tap-sub { color: var(--muted); font-size: 0.9rem; }
+  .pace-readout { display: flex; align-items: baseline; gap: 12px; }
+  .pace-num { font-size: 4.2rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pace-unit { font-size: 1rem; color: var(--muted); max-width: 7em; line-height: 1.25; }
+  .nudge { display: flex; flex-direction: column; gap: 10px; }
+  .nudge button { width: 72px; flex: 1; min-height: 64px; border: 2px solid var(--ink); background: var(--surface); border-radius: 10px; font-size: 1.6rem; font-weight: 700; }
+
+  fieldset { border: 0; padding: 0; margin: 0; }
+  legend { font-weight: 700; font-size: 1.3rem; margin-bottom: 12px; padding: 0; }
+  .ages { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ages label { position: relative; }
+  .ages input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+  .ages span { display: block; padding: 12px 22px; border: 2px solid var(--line); border-radius: 8px; font-weight: 700; background: var(--surface); }
+  .ages input:checked + span { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+  .ages input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+  .go { display: block; width: 100%; margin-top: 8px; padding: 20px; border: 0; border-radius: 10px; background: var(--ink); color: var(--surface); font-size: 1.25rem; font-weight: 700; }
+  .go:hover:not(:disabled) { background: #22355A; }
+  .error { color: #9B1C1C; font-weight: 700; margin: 12px 0 0; }
+
+  /* Progress */
+  #work { margin-top: 36px; }
+  .steps { list-style: none; padding: 0; margin: 0 0 8px; }
+  .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 10px 0; color: var(--muted); }
+  .steps li.active { color: var(--ink); font-weight: 700; }
+  .steps li.done { color: var(--ink); }
+  .dot { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--line); margin-top: 4px; }
+  .active .dot { border-color: var(--ink); background: var(--tape); }
+  .done .dot { border-color: var(--ok); background: var(--ok); }
+  .found { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-weight: 400; color: var(--muted); font-size: 0.9rem; }
+  .meter { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 8px; max-width: 320px; }
+  .meter i { display: block; height: 100%; background: var(--ink); width: 0; transition: width 0.3s; }
+
+  /* Results */
+  #result h2 { font-size: 1.7rem; margin-bottom: 4px; }
+  .summary { color: var(--muted); margin: 0 0 22px; }
+  .note { border-left: 6px solid var(--tape); background: var(--surface); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 0 0 14px; }
+  .play-all { display: flex; align-items: center; gap: 14px; margin: 22px 0 10px; }
+  .play-all button { padding: 14px 24px; border: 0; border-radius: 10px; background: var(--tape); color: var(--ink); font-weight: 700; font-size: 1.1rem; }
+  .play-all .tape { flex: 1; }
+  ol.songs, ul.songs { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
+  .song { display: grid; grid-template-columns: 76px 1fr 56px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .song.playing { background: #FFF7D9; }
+  .bpm { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .bpm small { display: block; font-size: 0.7rem; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  .title { font-weight: 700; }
+  .by { color: var(--muted); }
+  .why { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+  .song button { width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--ink); background: var(--surface); display: grid; place-items: center; }
+  .song button svg { width: 18px; height: 18px; }
+  .held .bpm { color: var(--muted); }
+  .held-head { margin-top: 44px; }
+  ul.groups { list-style: none; padding: 0; margin: 0; }
+  .group { margin-bottom: 26px; }
+  .group h3 { font-size: 1.05rem; margin: 0 0 8px; padding-left: 14px; border-left: 6px solid var(--line); }
+  .group h3 span { font-weight: 400; color: var(--muted); margin-left: 8px; white-space: nowrap; }
+
+  /* Folded form after a walk is built */
+  .recap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; margin-bottom: 8px; }
+  .recap p { margin: 0; font-weight: 700; }
+  .recap p span { display: block; font-weight: 400; color: var(--muted); }
+  footer { margin-top: 56px; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 18px; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 560px) {
+    html { font-size: 18px; }
+    section.ask { padding: 20px; }
+    h1 { font-size: 1.9rem; }
+    .pace { grid-template-columns: 1fr; }
+    .nudge { flex-direction: row; }
+    .nudge button { width: auto; }
+    .pace-num { font-size: 3.4rem; }
+    .song { grid-template-columns: 62px 1fr 52px; gap: 10px; }
+    .add { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="brand"><span class="tape" aria-hidden="true"></span>Cadence</p>
+    <h1>Walking music from the songs they already love</h1>
+    <p class="lede">Name a few favorite artists and set the pace of their steps. Cadence finds music they are likely to love, checks the beat of every song, and keeps only the ones that are steady enough to walk to.</p>
+  </header>
+
+  <form id="ask" novalidate>
+    <section class="ask">
+      <h2>Who do they love to listen to?</h2>
+      <p class="hint">Add one to four artists. Different styles work well together.</p>
+      <div class="chips" id="chips" aria-live="polite"></div>
+      <div class="add">
+        <label for="artist" class="hidden">Artist name</label>
+        <input id="artist" autocomplete="off" placeholder="Type an artist, like Johnny Cash">
+        <button type="button" class="btn-quiet" id="addArtist">Add artist</button>
+      </div>
+    </section>
+
+    <section class="ask">
+      <h2>How fast do they walk?</h2>
+      <p class="hint">Tap the pad once with each step while they walk, or use the buttons. Most people walk between 90 and 115 steps a minute; a physical therapist can set a target.</p>
+      <div class="pace">
+        <button type="button" class="tap-pad" id="tapPad" aria-describedby="paceText">
+          <span>
+            <span class="tap-label">Tap here with each step</span><br>
+            <span class="tap-sub" id="tapStatus">Four taps or more give a reading</span>
+          </span>
+          <span class="pace-readout">
+            <span class="pace-num" id="paceNum">100</span>
+            <span class="pace-unit" id="paceText">steps a minute</span>
+          </span>
+          <span class="tape moving" id="paceTape" aria-hidden="true"></span>
+        </button>
+        <div class="nudge">
+          <button type="button" id="faster" aria-label="Two steps a minute faster">+</button>
+          <button type="button" id="slower" aria-label="Two steps a minute slower">&minus;</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ask">
+      <fieldset>
+        <legend>Their age</legend>
+        <div class="ages">
+          <label><input type="radio" name="age" value="55_and_older" checked><span>Over 55</span></label>
+          <label><input type="radio" name="age" value="36_to_55"><span>36 to 55</span></label>
+          <label><input type="radio" name="age" value="35_and_younger"><span>35 or younger</span></label>
+        </div>
+      </fieldset>
+    </section>
+
+    <button type="submit" class="go" id="go">Build the walk</button>
+    <p class="error hidden" id="formError" role="alert"></p>
+  </form>
+
+  <div class="recap hidden" id="recap">
+    <p id="recapText"></p>
+    <button type="button" class="btn-quiet" id="change">Change the walk</button>
+  </div>
+
+  <section id="work" class="hidden" aria-live="polite">
+    <ol class="steps">
+      <li id="s-taste"><span class="dot"></span><div><span class="txt">Finding artists they are likely to love</span><div class="found" id="foundArtists"></div></div></li>
+      <li id="s-songs"><span class="dot"></span><div><span class="txt">Gathering each artist's best-known songs</span></div></li>
+      <li id="s-tempo"><span class="dot"></span><div><span class="txt">Measuring the beat of every song</span><div class="meter"><i id="meter"></i></div></div></li>
+      <li id="s-pick"><span class="dot"></span><div><span class="txt">Choosing songs steady enough to walk to</span></div></li>
+    </ol>
+  </section>
+
+  <section id="result" class="hidden">
+    <h2 id="resultHead"></h2>
+    <p class="summary" id="resultSummary"></p>
+    <div id="favNotes"></div>
+    <div class="play-all">
+      <button type="button" id="playAll">Play the walk</button>
+      <span class="tape" id="playTape" aria-hidden="true"></span>
+    </div>
+    <ol class="songs" id="playlist"></ol>
+
+    <h2 class="held-head">Held out, and why</h2>
+    <p class="summary">These are songs they may love, but the beat is not steady enough to step to. Play one to hear the sway.</p>
+    <ul class="groups" id="held"></ul>
+  </section>
+
+  <footer>
+    Taste matching by Qloo. Songs, previews and catalog tempos from Deezer; every tempo is also measured from the song itself. Cadence chooses music; it does not give medical advice. Set walking goals with a physical therapist.
+  </footer>
+</main>
+
+<audio id="audio" preload="none"></audio>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const favorites = ['The Temptations', 'Patsy Cline'];
+  let pace = 100;
+  const PLAY = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 2l12 7-12 7z" fill="currentColor"/></svg>';
+  const STOP = '<svg viewBox="0 0 18 18" aria-hidden="true"><rect x="3" y="3" width="12" height="12" fill="currentColor"/></svg>';
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // Favorites
+  function renderChips() {
+    $('chips').innerHTML = favorites.map((f, i) =>
+      `<span class="chip">${esc(f)}<button type="button" data-i="${i}" aria-label="Remove ${esc(f)}">&times;</button></span>`).join('');
+    $('addArtist').disabled = favorites.length >= 4;
+    $('artist').disabled = favorites.length >= 4;
+    $('artist').placeholder = favorites.length >= 4 ? 'Four artists is the most' : 'Type an artist, like Johnny Cash';
+  }
+  $('chips').addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]'); if (!b) return;
+    favorites.splice(Number(b.dataset.i), 1); renderChips(); $('artist').focus();
+  });
+  function addArtist() {
+    const v = $('artist').value.trim();
+    if (!v || favorites.length >= 4) return;
+    if (!favorites.some(f => f.toLowerCase() === v.toLowerCase())) favorites.push(v);
+    $('artist').value = ''; renderChips(); $('artist').focus();
+  }
+  $('addArtist').addEventListener('click', addArtist);
+  $('artist').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addArtist(); } });
+  renderChips();
+
+  // Pace: tap along, or nudge
+  function setPace(v) {
+    pace = Math.max(60, Math.min(140, Math.round(v)));
+    $('paceNum').textContent = pace;
+    document.documentElement.style.setProperty('--beat', (120 / pace).toFixed(3) + 's');
+  }
+  let taps = [];
+  $('tapPad').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const now = performance.now();
+    if (taps.length && now - taps[taps.length - 1] > 2500) taps = [];
+    taps.push(now); taps = taps.slice(-8);
+    if (taps.length >= 4) {
+      const gaps = taps.slice(1).map((t, i) => t - taps[i]).sort((a, b) => a - b);
+      const mid = gaps[Math.floor(gaps.length / 2)];
+      setPace(60000 / mid);
+      $('tapStatus').textContent = `Reading from your last ${taps.length} taps`;
+    } else {
+      $('tapStatus').textContent = `${4 - taps.length} more tap${4 - taps.length === 1 ? '' : 's'}`;
+    }
+  });
+  $('tapPad').addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); $('tapPad').dispatchEvent(new PointerEvent('pointerdown')); } });
+  $('faster').addEventListener('click', () => setPace(pace + 2));
+  $('slower').addEventListener('click', () => setPace(pace - 2));
+  setPace(100);
+
+  // Progress
+  const order = ['s-taste', 's-songs', 's-tempo', 's-pick'];
+  function activate(id) {
+    const at = order.indexOf(id);
+    order.forEach((s, i) => { $(s).classList.toggle('done', i < at); $(s).classList.toggle('active', i === at); });
+  }
+  function finishSteps() { order.forEach(s => { $(s).classList.add('done'); $(s).classList.remove('active'); }); }
+
+  // Audio
+  const audio = $('audio');
+  let queue = [], current = null;
+  function stop() { audio.pause(); current = null; queue = []; markPlaying(); $('playAll').textContent = 'Play the walk'; $('playTape').classList.remove('moving'); }
+  function markPlaying() {
+    document.querySelectorAll('.song').forEach(el => {
+      const on = current && el.dataset.id === String(current.id);
+      el.classList.toggle('playing', !!on);
+      const b = el.querySelector('button');
+      if (b && !b.disabled) { b.innerHTML = on ? STOP : PLAY; b.setAttribute('aria-label', (on ? 'Stop ' : 'Play ') + el.dataset.label); }
+    });
+  }
+  function play(track) {
+    current = track; audio.src = track.preview; audio.play().catch(() => {}); markPlaying();
+    if (track.step) document.documentElement.style.setProperty('--beat', (120 / track.step).toFixed(3) + 's');
+  }
+  audio.addEventListener('ended', () => { if (queue.length) play(queue.shift()); else stop(); });
+
+  function row(t, held) {
+    const label = `${t.title} by ${t.artist}`;
+    const tempo = held ? (t.measured ? Math.round(t.measured) : '') : Math.round(t.step);
+    const sub = held ? (t.measured ? 'beats a min' : '') : 'steps a min';
+    return `<li class="song${held ? ' held' : ''}" data-id="${t.id}" data-label="${esc(label)}">
+      <div class="bpm">${tempo}${sub ? `<small>${sub}</small>` : ''}</div>
+      <div><div class="title">${esc(t.title)}</div><div class="by">${esc(t.artist)}</div>
+        ${!held && t.note && t.note.startsWith('Catalog tempo was') ? `<div class="why">Listed tempo was wrong; beat measured from the song</div>` : ''}</div>
+      <button type="button" ${t.preview ? '' : 'disabled'} aria-label="Play ${esc(label)}">${PLAY}</button>
+    </li>`;
+  }
+
+  function render(r) {
+    const tracks = new Map();
+    [...r.playlist, ...r.held].forEach(t => tracks.set(String(t.id), t));
+    const steps = r.playlist.map(t => t.step);
+    const lo = Math.round(Math.min(...steps)), hi = Math.round(Math.max(...steps));
+    $('resultHead').textContent = r.playlist.length
+      ? `${r.playlist.length} songs for a ${r.target}-step walk`
+      : `No songs fit a ${r.target}-step walk yet`;
+    $('resultSummary').textContent = r.playlist.length
+      ? `They run from ${lo} to ${hi} steps a minute, starting just under the pace and finishing a little above it to draw each stride forward. ${r.held.length} songs were held out because their beat could not be trusted.`
+      : 'Try a pace a little faster or slower, or add another artist they love.';
+    $('favNotes').innerHTML = (r.favoriteNotes || []).map(n => `<p class="note">${esc(n.note)}</p>`).join('');
+    $('playlist').innerHTML = r.playlist.map(t => row(t, false)).join('');
+    // Group held songs under their reason so the judgment reads at a glance.
+    const groups = new Map();
+    r.held.forEach(t => { if (!groups.has(t.reason)) groups.set(t.reason, []); groups.get(t.reason).push(t); });
+    $('held').innerHTML = [...groups].sort((a, b) => b[1].length - a[1].length).map(([reason, list]) =>
+      `<li class="group"><h3>${esc(reason)} <span>${list.length} song${list.length === 1 ? '' : 's'}</span></h3>
+        <ul class="songs">${list.map(t => row(t, true)).join('')}</ul></li>`).join('');
+    $('playAll').disabled = !r.playlist.some(t => t.preview);
+    $('result').classList.remove('hidden');
+    document.querySelectorAll('.song button').forEach(b => b.addEventListener('click', () => {
+      const t = tracks.get(b.closest('.song').dataset.id);
+      if (current && current.id === t.id) return stop();
+      queue = []; play(t); $('playTape').classList.add('moving');
+    }));
+    $('playAll').onclick = () => {
+      if (current) return stop();
+      const list = r.playlist.filter(t => t.preview);
+      queue = list.slice(1); play(list[0]);
+      $('playAll').textContent = 'Stop'; $('playTape').classList.add('moving');
+    };
+    $('resultHead').setAttribute('tabindex', '-1'); $('resultHead').focus();
+  }
+
+  $('change').addEventListener('click', () => {
+    stop();
+    $('recap').classList.add('hidden'); $('ask').classList.remove('hidden');
+    $('work').classList.add('hidden'); $('result').classList.add('hidden');
+    $('artist').focus();
+  });
+
+  // Run a session
+  let source = null;
+  $('ask').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('formError').classList.add('hidden');
+    if (!favorites.length) { $('formError').textContent = 'Add at least one artist they love.'; $('formError').classList.remove('hidden'); return; }
+    stop(); if (source) source.close();
+    $('result').classList.add('hidden'); $('work').classList.remove('hidden');
+    $('foundArtists').innerHTML = ''; $('meter').style.width = '0';
+    order.forEach(s => $(s).classList.remove('done', 'active'));
+    activate('s-taste'); $('go').disabled = true; $('go').textContent = 'Building the walk';
+    const age = new FormData($('ask')).get('age');
+    const qs = new URLSearchParams({ favorites: favorites.join('|'), pace, age });
+    source = new EventSource('/api/session?' + qs);
+    const end = () => { source.close(); source = null; $('go').disabled = false; $('go').textContent = 'Build the walk again'; };
+    source.addEventListener('progress', ev => {
+      const p = JSON.parse(ev.data);
+      if (p.stage === 'taste' && p.artists) {
+        $('foundArtists').innerHTML = p.artists.map(a => `<span>${esc(a.name)}</span>`).join('');
+        activate('s-songs');
+      } else if (p.stage === 'tempo') {
+        activate('s-tempo');
+        if (p.total) $('meter').style.width = Math.round(100 * (p.progress || 0) / p.total) + '%';
+      }
+    });
+    source.addEventListener('result', ev => {
+      activate('s-pick'); finishSteps(); end();
+      const ageText = { '55_and_older': 'over 55', '36_to_55': '36 to 55', '35_and_younger': '35 or younger' }[age];
+      const names = favorites.length > 1 ? favorites.slice(0, -1).join(', ') + ' and ' + favorites[favorites.length - 1] : favorites[0];
+      $('recapText').innerHTML = `${esc(names)}<span>${pace} steps a minute, listener ${ageText}</span>`;
+      $('ask').classList.add('hidden'); $('recap').classList.remove('hidden');
+      render(JSON.parse(ev.data));
+    });
+    source.addEventListener('failure', ev => { end(); $('formError').textContent = JSON.parse(ev.data).error; $('formError').classList.remove('hidden'); });
+    source.onerror = () => {
+      if (!source) return;
+      end();
+      $('formError').textContent = 'The connection dropped before the playlist was ready. Check the artist names and try again.';
+      $('formError').classList.remove('hidden');
+    };
+  });
+})();
+</script>
+</body>
+</html>
