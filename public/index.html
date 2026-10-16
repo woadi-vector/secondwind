@@ -107,6 +107,12 @@
   /* Results */
   #result h2 { font-size: 1.7rem; margin-bottom: 4px; }
   .summary { color: var(--muted); margin: 0 0 22px; }
+  .funnel { list-style: none; padding: 0; margin: 0 0 22px; border-top: 1px solid var(--line); }
+  .funnel li { display: grid; grid-template-columns: 76px 1fr; gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .funnel .n { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .funnel li.out .n { color: var(--muted); }
+  .funnel li.kept .n { color: var(--ok); }
+  .funnel li.kept { font-weight: 700; }
   .note { border-left: 6px solid var(--tape); background: var(--surface); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 0 0 14px; }
   .play-all { display: flex; align-items: center; gap: 14px; margin: 22px 0 10px; }
   .play-all button { padding: 14px 24px; border: 0; border-radius: 10px; background: var(--tape); color: var(--ink); font-weight: 700; font-size: 1.1rem; }
@@ -229,6 +235,7 @@
   <section id="result" class="hidden">
     <h2 id="resultHead"></h2>
     <p class="summary" id="resultSummary"></p>
+    <ol class="funnel" id="funnel" aria-label="How the songs were chosen"></ol>
     <div id="favNotes"></div>
     <div class="service">
       <label for="serviceSel">Full songs open in</label>
@@ -385,9 +392,21 @@
       ? `${r.playlist.length} songs for a ${r.target}-step walk`
       : `No songs fit a ${r.target}-step walk yet`;
     $('resultSummary').textContent = r.playlist.length
-      ? `They run from ${lo} to ${hi} steps a minute, starting just under the pace and finishing a little above it to draw each stride forward. ${r.held.length} songs were held out because their beat could not be trusted.`
+      ? `They run from ${lo} to ${hi} steps a minute, starting just under the pace and finishing a little above it to draw each stride forward.`
       : 'Try a pace a little faster or slower, or add another artist they love.';
     $('favNotes').innerHTML = (r.favoriteNotes || []).map(n => `<p class="note">${esc(n.note)}</p>`).join('');
+    // The funnel: most of the agent's work is saying no, so show it.
+    const c = r.counts;
+    if (c) {
+      const artists = r.stats && r.stats.artists;
+      const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+      $('funnel').innerHTML = [
+        [c.checked, `songs checked${artists ? `, from ${plural(artists, 'artist', 'artists')} Qloo matched to their taste` : ''}`, ''],
+        [c.outOfRange, `outside a ${r.target}-step pace`, 'out'],
+        [c.held, `held out because the beat sways or cannot be trusted`, 'out'],
+        [c.kept, c.fit > c.kept ? `kept for the walk, the best of ${c.fit} that fit` : `kept for the walk`, 'kept'],
+      ].map(([n, label, cls]) => `<li class="${cls}"><span class="n">${n}</span><span>${esc(label)}</span></li>`).join('');
+    } else $('funnel').innerHTML = '';
     $('playlist').innerHTML = r.playlist.map(t => row(t, false)).join('');
     // Group held songs under their reason so the judgment reads at a glance.
     const groups = new Map();

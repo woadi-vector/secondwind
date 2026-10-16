@@ -35,7 +35,7 @@ async function fixtureSession({ favorites, target }, log) {
   log({ stage: 'tempo', text: `Measuring the beat of ${tracks.length} songs`, total: tracks.length });
   for (let i = 10; i <= tracks.length; i += 10) { await new Promise(r => setTimeout(r, 60)); log({ stage: 'tempo', progress: i, total: tracks.length }); }
   log({ stage: 'tempo', text: `Beat checked on ${tracks.length} songs` });
-  return { ...buildPlaylist(tracks, { target, favorites }), artistIssues: [], stats: { tracks: tracks.length } };
+  return { ...buildPlaylist(tracks, { target, favorites }), artistIssues: [], stats: { tracks: tracks.length, artists: artists.length } };
 }
 
 async function streamSession(req, res, url) {
@@ -59,7 +59,7 @@ async function streamSession(req, res, url) {
     send('result', {
       target: parsed.target, favorites: parsed.favorites,
       playlist: result.playlist.map(pick), held: result.held.map(pick),
-      outOfRange: result.outOfRange.length, favoriteNotes: result.favoriteNotes,
+      outOfRange: result.outOfRange.length, favoriteNotes: result.favoriteNotes, counts: result.counts,
       artistIssues: result.artistIssues, stats: result.stats,
     });
   } catch (e) {
