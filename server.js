@@ -77,9 +77,19 @@ function serveStatic(res, pathname) {
   res.end(readFileSync(file));
 }
 
+// Log anything that would otherwise crash the server silently, and keep serving.
+process.on('unhandledRejection', e => console.error('Unhandled rejection:', e));
+process.on('uncaughtException', e => console.error('Uncaught exception:', e));
+
 createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (url.pathname === '/api/session') return streamSession(req, res, url);
-  if (url.pathname === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  if (url.pathname === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({
+      ok: true, uptimeSeconds: Math.round(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1e6),
+      sessionsRunning: running, commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7),
+    }));
+  }
   return serveStatic(res, url.pathname);
 }).listen(PORT, () => console.log(`Listening on http://localhost:${PORT}${process.env.SECONDWIND_FIXTURE ? ' (fixture mode)' : ''}`));
