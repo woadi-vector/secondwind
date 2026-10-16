@@ -16,6 +16,10 @@ Second Wind takes a few favorite artists and a walking pace, then builds a playl
 
 Without Qloo, this is a tempo filter over a generic catalog. With Qloo, it is music this particular person will want to keep walking to.
 
+## Beyond Parkinson's
+
+Second Wind was built and tested for gait training, and that is where its safety rules come from. The engine underneath serves anyone who moves to a set pace. A runner at 170 steps a minute steps twice on every beat of an 85 BPM song; a cyclist at 90 pedal strokes a minute rides a 90 or 180 BPM song. Paces from 60 to 200 work today. Walkers in cardiac or stroke rehabilitation, older adults keeping up a daily walk, runners and cyclists all need the same two things: music they love, and a beat they can trust. For athletes the swing check can relax; for rehabilitation it stays strict.
+
 ## Try it
 
 The hosted app runs from a public link with no sign-in. Add artists, tap along with someone's steps (or use the + and − buttons), choose an age range and select **Build the walk**. Every song and every held-out song has a play button.

@@ -291,7 +291,7 @@
 
   // Pace: tap along, or nudge
   function setPace(v) {
-    pace = Math.max(60, Math.min(140, Math.round(v)));
+    pace = Math.max(60, Math.min(200, Math.round(v)));
     $('paceNum').textContent = pace;
     document.documentElement.style.setProperty('--beat', (120 / pace).toFixed(3) + 's');
   }

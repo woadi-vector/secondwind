@@ -19,7 +19,7 @@ function parseRequest(url) {
   const age = url.searchParams.get('age') || '55_and_older';
   if (!favorites.length) return { error: 'Name at least one artist the listener loves.' };
   if (favorites.some(f => f.length > 60)) return { error: 'Artist names must be under 60 characters.' };
-  if (!(target >= 60 && target <= 140)) return { error: 'Set a walking pace between 60 and 140 steps a minute.' };
+  if (!(target >= 60 && target <= 200)) return { error: 'Set a pace between 60 and 200 steps a minute.' };
   if (!AGES.has(age)) return { error: 'Choose an age range from the list.' };
   return { favorites, target, age };
 }
