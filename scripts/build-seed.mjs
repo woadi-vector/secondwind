@@ -23,8 +23,12 @@ const table = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {};
 const save = () => { mkdirSync('data', { recursive: true }); writeFileSync(OUT, JSON.stringify(table)); };
 const deezer = createDeezer();
 
-const names = new Map();
-for (const seed of SEEDS) {
+// The artist list is saved locally so a restarted run skips straight to measuring.
+const NAMES_FILE = 'cache/seed-artists.json';
+const BUDGET_MS = Number(process.env.BUDGET_MINUTES || 0) * 60000; // stop cleanly after this long (0 = no limit)
+const started = Date.now();
+const names = new Map(existsSync(NAMES_FILE) ? JSON.parse(readFileSync(NAMES_FILE, 'utf8')) : []);
+if (!names.size) for (const seed of SEEDS) {
   for (const age of ['55_and_older', '36_to_55']) {
     try {
       const { artists } = await blendedArtists([seed], { age, perSeed: 15 });
@@ -32,14 +36,20 @@ for (const seed of SEEDS) {
     } catch (e) { console.log(`Qloo failed for ${seed}: ${e.message}`); }
   }
 }
+mkdirSync('cache', { recursive: true }); writeFileSync(NAMES_FILE, JSON.stringify([...names]));
 console.log(`${names.size} artists to cover; ${Object.keys(table).length} songs already in the table`);
 
-let n = 0, measured = 0, failed = 0;
+const DONE_FILE = 'cache/seed-done.json';
+const done = new Set(existsSync(DONE_FILE) ? JSON.parse(readFileSync(DONE_FILE, 'utf8')) : []);
+const saveDone = () => writeFileSync(DONE_FILE, JSON.stringify([...done]));
+let n = 0, measured = 0, failed = 0, stoppedEarly = false;
 for (const name of names.values()) {
   n++;
+  if (done.has(name)) continue;
+  if (BUDGET_MS && Date.now() - started > BUDGET_MS) { stoppedEarly = true; break; }
   try {
     const { artist } = await deezer.findArtist(name);
-    if (!artist) { console.log(`[${n}/${names.size}] ${name}: no confident match`); continue; }
+    if (!artist) { console.log(`[${n}/${names.size}] ${name}: no confident match`); done.add(name); continue; }
     const tracks = await deezer.topTracks(artist.id, { limit: TRACKS_PER_ARTIST });
     for (const t of tracks) {
       if (table[t.id]) continue;
@@ -47,8 +57,9 @@ for (const name of names.values()) {
       catch { failed++; }
     }
     console.log(`[${n}/${names.size}] ${name}: ${tracks.length} songs`);
+    done.add(name);
   } catch (e) { console.log(`[${n}/${names.size}] ${name}: ${e.message}`); }
-  if (n % 10 === 0) save();
+  if (n % 10 === 0) { save(); saveDone(); }
 }
-save();
-console.log(`Done: ${Object.keys(table).length} songs in the table (${measured} measured now, ${failed} failed)`);
+save(); saveDone();
+console.log(`${stoppedEarly ? 'Paused (time budget)' : 'Done'}: ${Object.keys(table).length} songs in the table (${measured} measured now, ${failed} failed)`);
