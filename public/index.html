@@ -121,6 +121,9 @@
   .why { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
   a.full { display: inline-block; margin-top: 6px; padding: 6px 0; font-size: 0.9rem; font-weight: 700; color: var(--ink); text-underline-offset: 3px; }
   .play-all { flex-wrap: wrap; }
+  .service { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0 0; }
+  .service label { font-weight: 700; }
+  .service select { font: inherit; padding: 10px 14px; border: 2px solid var(--ink); border-radius: 8px; background: var(--surface); color: var(--ink); }
   .play-all .btn-quiet { background: transparent; border: 2px solid var(--ink); padding: 12px 20px; font-size: 1rem; }
   .song button { width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--ink); background: var(--surface); display: grid; place-items: center; }
   .song button svg { width: 18px; height: 18px; }
@@ -227,6 +230,15 @@
     <h2 id="resultHead"></h2>
     <p class="summary" id="resultSummary"></p>
     <div id="favNotes"></div>
+    <div class="service">
+      <label for="serviceSel">Full songs open in</label>
+      <select id="serviceSel">
+        <option value="amazon">Amazon Music</option>
+        <option value="spotify">Spotify</option>
+        <option value="apple">Apple Music</option>
+        <option value="youtube">YouTube Music</option>
+      </select>
+    </div>
     <div class="play-all">
       <button type="button" id="playAll">Play the walk</button>
       <button type="button" class="btn-quiet" id="copyList">Copy the list</button>
@@ -311,6 +323,27 @@
   }
   function finishSteps() { order.forEach(s => { $(s).classList.add('done'); $(s).classList.remove('active'); }); }
 
+  // Where full-length songs open. The previews play here; full songs need the listener's own service.
+  const SERVICES = {
+    amazon: { name: 'Amazon Music', url: q => `https://music.amazon.com/search/${encodeURIComponent(q)}` },
+    spotify: { name: 'Spotify', url: q => `https://open.spotify.com/search/${encodeURIComponent(q)}` },
+    apple: { name: 'Apple Music', url: q => `https://music.apple.com/us/search?term=${encodeURIComponent(q)}` },
+    youtube: { name: 'YouTube Music', url: q => `https://music.youtube.com/search?q=${encodeURIComponent(q)}` },
+  };
+  let service = 'amazon';
+  try { const saved = localStorage.getItem('secondwind.service'); if (SERVICES[saved]) service = saved; } catch {}
+  const serviceUrl = t => SERVICES[service].url(`${t.title} ${t.artist}`);
+  $('serviceSel').value = service;
+  $('serviceSel').addEventListener('change', e => {
+    service = e.target.value;
+    try { localStorage.setItem('secondwind.service', service); } catch {}
+    document.querySelectorAll('a.full').forEach(a => {
+      const t = lastTracks.get(a.closest('.song').dataset.id);
+      if (t) { a.href = serviceUrl(t); a.textContent = `Open in ${SERVICES[service].name}`; }
+    });
+  });
+  let lastTracks = new Map();
+
   // Audio
   const audio = $('audio');
   let queue = [], current = null;
@@ -337,7 +370,7 @@
       <div class="bpm">${tempo}${sub ? `<small>${sub}</small>` : ''}</div>
       <div><div class="title">${esc(t.title)}</div><div class="by">${esc(t.artist)}</div>
         ${!held && t.note && t.note.startsWith('Catalog tempo was') ? `<div class="why">Listed tempo was wrong; beat measured from the song</div>` : ''}
-        ${!held ? `<a class="full" href="https://music.amazon.com/search/${encodeURIComponent(t.title + ' ' + t.artist)}" target="_blank" rel="noopener">Find in Amazon Music</a>` : ''}</div>
+        ${!held ? `<a class="full" href="${serviceUrl(t)}" target="_blank" rel="noopener">Open in ${SERVICES[service].name}</a>` : ''}</div>
       <button type="button" ${t.preview ? '' : 'disabled'} aria-label="Play ${esc(label)}">${PLAY}</button>
     </li>`;
   }
@@ -345,6 +378,7 @@
   function render(r) {
     const tracks = new Map();
     [...r.playlist, ...r.held].forEach(t => tracks.set(String(t.id), t));
+    lastTracks = tracks;
     const steps = r.playlist.map(t => t.step);
     const lo = Math.round(Math.min(...steps)), hi = Math.round(Math.max(...steps));
     $('resultHead').textContent = r.playlist.length
