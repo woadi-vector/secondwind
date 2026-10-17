@@ -143,6 +143,15 @@
   .kinds input:checked + span { border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
   .kinds input:checked + span b::before { content: ''; display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--tape); border: 2px solid var(--ink); margin-right: 8px; vertical-align: 1px; }
   .kinds input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
+  .describe textarea { width: 100%; min-height: 140px; font: inherit; padding: 12px 16px; border: 2px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); resize: vertical; }
+  .describe textarea:focus { border-color: var(--ink); outline: none; }
+  .describe .row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 12px; }
+  .understood { margin: 16px 0 0; }
+  .brief { background: var(--surface); border: 2px solid var(--ink); border-radius: 10px; padding: 18px 20px; margin: 0 0 22px; }
+  .brief h3 { margin: 0 0 6px; font-size: 1rem; }
+  .brief p { margin: 0; }
+  .brief .wait { color: var(--muted); }
+  .brief button { margin-top: 14px; }
   li.cue { display: flex; align-items: center; gap: 10px; padding: 12px 0 0; font-weight: 700; }
   li.cue::before { content: ''; flex: 0 0 28px; height: 10px; border-radius: 2px;
     background: repeating-linear-gradient(-45deg, var(--tape) 0 6px, var(--ink) 6px 12px); }
@@ -187,6 +196,18 @@
   </header>
 
   <form id="ask" novalidate>
+    <section class="ask describe hidden" id="describeBox">
+      <h2>Tell us about the class</h2>
+      <p class="hint">In your own words: what music they love, who has a favorite, how you like to run it. Claude reads it and fills in the settings below, and you can change anything.</p>
+      <label for="describe" class="hidden">Describe the class</label>
+      <textarea id="describe" placeholder="Eight regulars, mostly in their 70s. Motown and old country, a lot of Patsy Cline. Earl always asks for Lynyrd Skynyrd. I like to switch the music on them to keep them thinking."></textarea>
+      <div class="row">
+        <button type="button" class="btn-quiet" id="planBtn">Set it up</button>
+        <span class="hint" id="planStatus" style="margin:0"></span>
+      </div>
+      <div id="planNote"></div>
+    </section>
+
     <section class="ask">
       <h2>Who do they love to listen to?</h2>
       <p class="hint">Add one to four artists. Different styles work well together.</p>
@@ -262,6 +283,7 @@
   <section id="result" class="hidden">
     <h2 id="resultHead"></h2>
     <p class="summary" id="resultSummary"></p>
+    <div class="brief hidden" id="brief" aria-live="polite"></div>
     <ol class="funnel" id="funnel" aria-label="How the songs were chosen"></ol>
     <div id="favNotes"></div>
     <div class="service">
@@ -349,6 +371,28 @@
   $('faster').addEventListener('click', () => setPace(pace + 2));
   $('slower').addEventListener('click', () => setPace(pace - 2));
   setPace(100);
+
+  // Describing the class: Claude turns the instructor's words into the settings below.
+  fetch('/api/features').then(r => r.json()).then(f => { if (f.claude) $('describeBox').classList.remove('hidden'); }).catch(() => {});
+  function setMode(m) { document.querySelector(`input[name="mode"][value="${m}"]`).checked = true; }
+  function setAge(a) { const el = document.querySelector(`input[name="age"][value="${a}"]`); if (el) el.checked = true; }
+  $('planBtn').addEventListener('click', async () => {
+    const description = $('describe').value.trim();
+    $('planNote').innerHTML = '';
+    if (description.length < 10) { $('planStatus').textContent = 'Write a sentence or two about the class first.'; return; }
+    $('planBtn').disabled = true; $('planStatus').textContent = 'Claude is reading it';
+    try {
+      const res = await fetch('/api/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description }) });
+      const p = await res.json();
+      if (!res.ok) throw new Error(p.error || 'Could not read that.');
+      favorites.splice(0, favorites.length, ...p.favorites); renderChips();
+      setAge(p.age); setMode(p.mode); if (p.pace) setPace(p.pace);
+      $('planStatus').textContent = 'Settings filled in below';
+      $('planNote').innerHTML = `<p class="note understood">${esc(p.understood)}${p.pace ? '' : ' Tap along with a walker to set the pace.'}</p>`
+        + (p.check ? `<p class="note"><b>One question:</b> ${esc(p.check)}</p>` : '');
+    } catch (e) { $('planStatus').textContent = e.message; }
+    finally { $('planBtn').disabled = false; }
+  });
 
   // Progress
   const order = ['s-taste', 's-songs', 's-tempo', 's-pick'];
@@ -542,7 +586,9 @@
     const kind = new FormData($('ask')).get('mode') === 'drill' ? 'drill' : 'steady';
     const qs = new URLSearchParams({ favorites: favorites.join('|'), pace, age, mode: kind });
     source = new EventSource('/api/session?' + qs);
-    const end = () => { source.close(); source = null; $('go').disabled = false; $('go').textContent = 'Build the walk again'; };
+    let gotResult = false;
+    $('brief').classList.add('hidden');
+    const end = () => { if (!source) return; source.close(); source = null; $('go').disabled = false; $('go').textContent = 'Build the walk again'; };
     source.addEventListener('progress', ev => {
       const p = JSON.parse(ev.data);
       if (p.stage === 'taste' && p.artists) {
@@ -553,18 +599,39 @@
         if (p.total) $('meter').style.width = Math.round(100 * (p.progress || 0) / p.total) + '%';
       }
     });
+    source.addEventListener('brief', ev => {
+      const b = JSON.parse(ev.data); end();
+      if (!b.brief) { $('brief').classList.add('hidden'); return; }
+      $('brief').innerHTML = `<h3>Note for the instructor</h3><p>${esc(b.brief)}</p>`
+        + (b.adjustment ? `<button type="button" class="btn-quiet" id="adjust">${esc(b.adjustment.label)}</button>` : '');
+      if (b.adjustment) $('adjust').onclick = () => {
+        const a = b.adjustment;
+        if (a.pace) setPace(a.pace);
+        if (a.mode) setMode(a.mode);
+        if (a.addArtist && !favorites.some(f => f.toLowerCase() === a.addArtist.toLowerCase())) {
+          if (favorites.length >= 4) favorites.pop();
+          favorites.push(a.addArtist); renderChips();
+        }
+        $('ask').requestSubmit();
+      };
+    });
     source.addEventListener('result', ev => {
-      activate('s-pick'); finishSteps(); end();
+      const data = JSON.parse(ev.data); gotResult = true;
+      activate('s-pick'); finishSteps();
+      if (data.briefing) { $('go').disabled = false; $('go').textContent = 'Build the walk again'; } else end();
       const ageText = { '55_and_older': 'over 55', '36_to_55': '36 to 55', '35_and_younger': '35 or younger' }[age];
       const names = favorites.length > 1 ? favorites.slice(0, -1).join(', ') + ' and ' + favorites[favorites.length - 1] : favorites[0];
       $('recapText').innerHTML = `${esc(names)}<span>${kind === 'drill' ? `Drill around ${pace}` : pace} steps a minute, listener ${ageText}</span>`;
       $('ask').classList.add('hidden'); $('recap').classList.remove('hidden');
-      render(JSON.parse(ev.data));
+      render(data);
+      $('brief').classList.toggle('hidden', !data.briefing);
+      if (data.briefing) $('brief').innerHTML = '<h3>Note for the instructor</h3><p class="wait">Claude is reviewing what was kept and refused</p>';
     });
     source.addEventListener('failure', ev => { end(); $('formError').textContent = JSON.parse(ev.data).error; $('formError').classList.remove('hidden'); });
     source.onerror = () => {
       if (!source) return;
       end();
+      if (gotResult) { $('brief').classList.add('hidden'); return; } // only the note was lost
       $('formError').textContent = 'The connection dropped before the playlist was ready. Check the artist names and try again.';
       $('formError').classList.remove('hidden');
     };
