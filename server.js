@@ -5,6 +5,7 @@ import { extname, join, normalize } from 'path';
 import { buildSession } from './lib/pipeline.js';
 import { buildPlaylist, buildDrill } from './lib/select.js';
 import { claudeAvailable, planClass, briefWalk } from './lib/claude.js';
+import * as claudeState from './lib/claude.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC = join(process.cwd(), 'public');
@@ -127,7 +128,7 @@ createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (url.pathname === '/api/session') return streamSession(req, res, url);
   if (url.pathname === '/api/plan' && req.method === 'POST') return planRequest(req, res);
-  if (url.pathname === '/api/features') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ claude: claudeAvailable() })); }
+  if (url.pathname === '/api/features') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ claude: claudeAvailable(), lastError: claudeState.lastClaudeError })); }
   if (url.pathname === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({
