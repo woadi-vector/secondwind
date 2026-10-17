@@ -16,6 +16,13 @@ Second Wind takes a few favorite artists and a walking pace, then builds a playl
 
 **Drill mode, for the instructor.** In the Parkinson's classes this was built with, the instructor changes the music on purpose, switching songs and dropping the volume, so walkers practice adapting mid-stride. Drill mode plans those changes: the pace moves every two songs (for a 100-step class: 100, 110, 100, 90), the style flips between favorites inside each pair, and the volume eases down partway through some songs. Each change comes with a cue to call out, and a "Change it now" button jumps ahead when the instructor wants to surprise the room. Swaying songs are held out of a drill just as strictly: it should test how someone adapts, never their balance. A gentle setting halves the pace changes to 5 percent for classes with canes, walkers or balance concerns; Claude turns it on when the instructor's description mentions them. The right size of change is a question for the class's physical therapist, and both settings are placeholders until one weighs in.
 
+**Where Claude comes in.** Two jobs need reading and judgment instead of measurement, and Claude does both:
+
+- *Setting up the class.* An instructor writes about the class the way they would to a colleague ("Eight regulars, Motown and old country, a lot of Patsy Cline. Earl always asks for Lynyrd Skynyrd. Two of them use canes. I like to switch the music on them."). Claude picks four artists that cover the room, chooses a steady walk or a drill, turns on gentle changes because of the canes, takes the pace if one was given, and says in plain words what it set up. When something matters and is unclear, it asks one question.
+- *Briefing the instructor.* After the songs are chosen, Claude reads the outcome and writes a short note: what the class will hear, and which loved songs were refused and why ("Crazy" and "So Wrong" sway; "Free Bird" could not be measured with confidence). It can offer one adjustment as a button, such as a slightly different pace that lets a favorite in.
+
+Claude never adds a song or overrides a rule. Qloo decides taste, the measurements decide what is safe, and everything Claude returns is checked against the same limits as the form.
+
 Without Qloo, this is a tempo filter over a generic catalog. With Qloo, it is music this particular person will want to keep walking to.
 
 **Where this goes next:** any instructor who runs a class to music, from stroke and cardiac rehab to senior fitness, then spin and running groups (paces up to 200 already work), and eventually any planned workout, block by block.
@@ -26,7 +33,7 @@ The hosted app runs from a public link with no sign-in. Add artists, tap along w
 
 ## Run it yourself
 
-Requires Node 22 or later and a Qloo hackathon API key.
+Requires Node 22 or later and a Qloo hackathon API key. An Anthropic API key (`ANTHROPIC_API_KEY`) is optional; without it the app works as before and the class description and instructor's note stay hidden.
 
 ```
 git clone https://github.com/woadi-vector/secondwind
@@ -43,7 +50,8 @@ Open http://localhost:3000.
 - `lib/qloo.js`: taste blend across favorites, with duplicate artist merging
 - `lib/deezer.js`: artist match with impostor guard, top tracks, previews, catalog tempo
 - `lib/audio.js` and `lib/tempo.js`: mp3 decoding and tempo measurement in plain JavaScript
-- `lib/select.js`: the rules for what is safe to walk to, and the plain-language reasons
+- `lib/select.js`: the rules for what is safe to walk to, steady walks and drills, and the plain-language reasons
+- `lib/claude.js`: reading the instructor's description into settings, and the note on each walk
 - `lib/pipeline.js`: the whole session, with a tempo cache so each song is measured once
 - `server.js` and `public/index.html`: the web app, which streams the agent's progress as it works
 
