@@ -24,11 +24,12 @@ function parseRequest(url) {
   if (!(target >= 60 && target <= 200)) return { error: 'Set a pace between 60 and 200 steps a minute.' };
   if (!AGES.has(age)) return { error: 'Choose an age range from the list.' };
   const mode = url.searchParams.get('mode') === 'drill' ? 'drill' : 'steady';
-  return { favorites, target, age, mode };
+  const gentle = mode === 'drill' && url.searchParams.get('gentle') === '1';
+  return { favorites, target, age, mode, gentle };
 }
 
 // Development only: replay recorded tracks so the page can be built without network access.
-async function fixtureSession({ favorites, target, mode }, log) {
+async function fixtureSession({ favorites, target, mode, gentle }, log) {
   const tracks = JSON.parse(readFileSync(process.env.SECONDWIND_FIXTURE, 'utf8'));
   const artists = [...new Set(tracks.map(t => t.artist))];
   log({ stage: 'taste', text: `Asking Qloo who else fans of ${favorites.join(' and ')} love` });
@@ -39,7 +40,7 @@ async function fixtureSession({ favorites, target, mode }, log) {
   for (let i = 10; i <= tracks.length; i += 10) { await new Promise(r => setTimeout(r, 60)); log({ stage: 'tempo', progress: i, total: tracks.length }); }
   log({ stage: 'tempo', text: `Beat checked on ${tracks.length} songs` });
   const build = mode === 'drill' ? buildDrill : buildPlaylist;
-  return { ...build(tracks, { target, favorites }), artistIssues: [], stats: { tracks: tracks.length, artists: artists.length } };
+  return { ...build(tracks, { target, favorites, gentle }), artistIssues: [], stats: { tracks: tracks.length, artists: artists.length } };
 }
 
 async function streamSession(req, res, url) {
@@ -61,7 +62,7 @@ async function streamSession(req, res, url) {
       confidence: t.confidence, note: t.note, reason: t.reason, duration: t.duration,
       measured: t.est?.bpm || t.deezerBpm || null, blockPace: t.blockPace, block: t.block, cue: t.cue, volume: t.volume });
     send('result', {
-      target: parsed.target, favorites: parsed.favorites, mode: result.mode, paces: result.paces,
+      target: parsed.target, favorites: parsed.favorites, mode: result.mode, gentle: !!result.gentle, paces: result.paces,
       playlist: result.playlist.map(pick), held: result.held.map(pick),
       outOfRange: result.outOfRange.length, favoriteNotes: result.favoriteNotes, counts: result.counts,
       artistIssues: result.artistIssues, stats: result.stats, briefing: claudeAvailable(),
@@ -69,7 +70,7 @@ async function streamSession(req, res, url) {
     // The instructor's note comes after the songs, so a slow answer never holds up the playlist.
     if (claudeAvailable()) {
       try {
-        const b = await briefWalk({ target: parsed.target, mode: parsed.mode, favorites: parsed.favorites, result });
+        const b = await briefWalk({ target: parsed.target, mode: parsed.mode, gentle: parsed.gentle, favorites: parsed.favorites, result });
         const a = b.adjustment;
         const adjustment = a && a.label ? {
           label: String(a.label).slice(0, 80),
@@ -106,6 +107,7 @@ async function planRequest(req, res) {
       favorites,
       age: AGES.has(p.age) ? p.age : '55_and_older',
       mode: p.mode === 'drill' ? 'drill' : 'steady',
+      gentle: p.mode === 'drill' && p.gentle === true,
       pace: Number.isInteger(p.pace) && p.pace >= 60 && p.pace <= 200 ? p.pace : null,
       understood: String(p.understood || '').slice(0, 600),
       check: p.check ? String(p.check).slice(0, 300) : null,

@@ -152,6 +152,10 @@
   .brief p { margin: 0; }
   .brief .wait { color: var(--muted); }
   .brief button { margin-top: 14px; }
+  .gentle { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 14px 18px; background: var(--paper); border-radius: 10px; }
+  .gentle input { width: 26px; height: 26px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--ink); }
+  .gentle b { display: block; }
+  .gentle small { color: var(--muted); font-size: 0.85rem; }
   li.cue { display: flex; align-items: center; gap: 10px; padding: 12px 0 0; font-weight: 700; }
   li.cue::before { content: ''; flex: 0 0 28px; height: 10px; border-radius: 2px;
     background: repeating-linear-gradient(-45deg, var(--tape) 0 6px, var(--ink) 6px 12px); }
@@ -248,6 +252,8 @@
           <label><input type="radio" name="mode" value="steady" checked><span><b>Steady walk</b><small>Every song close to their pace, from just under it to a little above</small></span></label>
           <label><input type="radio" name="mode" value="drill"><span><b>Drill</b><small>Planned changes to call out: the pace shifts every two songs, the style flips, and the volume drops partway through some songs</small></span></label>
         </div>
+        <label class="gentle hidden" id="gentleRow"><input type="checkbox" id="gentle">
+          <span><b>Gentle changes</b><small>Pace shifts of 5 percent instead of 10, for canes, walkers or balance concerns. Check the right size of change with the class's physical therapist.</small></span></label>
       </fieldset>
     </section>
 
@@ -374,7 +380,9 @@
 
   // Describing the class: Claude turns the instructor's words into the settings below.
   fetch('/api/features').then(r => r.json()).then(f => { if (f.claude) $('describeBox').classList.remove('hidden'); }).catch(() => {});
-  function setMode(m) { document.querySelector(`input[name="mode"][value="${m}"]`).checked = true; }
+  function showGentle() { $('gentleRow').classList.toggle('hidden', new FormData($('ask')).get('mode') !== 'drill'); }
+  function setMode(m) { document.querySelector(`input[name="mode"][value="${m}"]`).checked = true; showGentle(); }
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', showGentle));
   function setAge(a) { const el = document.querySelector(`input[name="age"][value="${a}"]`); if (el) el.checked = true; }
   $('planBtn').addEventListener('click', async () => {
     const description = $('describe').value.trim();
@@ -386,7 +394,7 @@
       const p = await res.json();
       if (!res.ok) throw new Error(p.error || 'Could not read that.');
       favorites.splice(0, favorites.length, ...p.favorites); renderChips();
-      setAge(p.age); setMode(p.mode); if (p.pace) setPace(p.pace);
+      setAge(p.age); setMode(p.mode); $('gentle').checked = !!p.gentle; if (p.pace) setPace(p.pace);
       $('planStatus').textContent = 'Settings filled in below';
       $('planNote').innerHTML = `<p class="note understood">${esc(p.understood)}${p.pace ? '' : ' Tap along with a walker to set the pace.'}</p>`
         + (p.check ? `<p class="note"><b>One question:</b> ${esc(p.check)}</p>` : '');
@@ -512,7 +520,7 @@
       : `${r.playlist.length} songs for a ${r.target}-step walk`;
     $('resultSummary').textContent = !r.playlist.length
       ? 'Try a pace a little faster or slower, or add another artist they love.'
-      : drill ? `The pace changes ${changes} times between ${joinAnd(paceList)} steps a minute, and the volume drops ${drops} times. Call each change as its song starts; the yellow lines below are the cues.`
+      : drill ? `${r.gentle ? 'Gentle changes. ' : ''}The pace changes ${changes} times between ${joinAnd(paceList)} steps a minute, and the volume drops ${drops} times. Call each change as its song starts; the yellow lines below are the cues.`
       : `They run from ${lo} to ${hi} steps a minute, starting just under the pace and finishing a little above it to draw each stride forward.`;
     $('favNotes').innerHTML = (r.favoriteNotes || []).map(n => `<p class="note">${esc(n.note)}</p>`).join('');
     // The funnel: most of the agent's work is saying no, so show it.
@@ -584,7 +592,8 @@
     activate('s-taste'); $('go').disabled = true; $('go').textContent = 'Building the walk';
     const age = new FormData($('ask')).get('age');
     const kind = new FormData($('ask')).get('mode') === 'drill' ? 'drill' : 'steady';
-    const qs = new URLSearchParams({ favorites: favorites.join('|'), pace, age, mode: kind });
+    const soft = kind === 'drill' && $('gentle').checked;
+    const qs = new URLSearchParams({ favorites: favorites.join('|'), pace, age, mode: kind, gentle: soft ? '1' : '0' });
     source = new EventSource('/api/session?' + qs);
     let gotResult = false;
     $('brief').classList.add('hidden');
@@ -621,7 +630,7 @@
       if (data.briefing) { $('go').disabled = false; $('go').textContent = 'Build the walk again'; } else end();
       const ageText = { '55_and_older': 'over 55', '36_to_55': '36 to 55', '35_and_younger': '35 or younger' }[age];
       const names = favorites.length > 1 ? favorites.slice(0, -1).join(', ') + ' and ' + favorites[favorites.length - 1] : favorites[0];
-      $('recapText').innerHTML = `${esc(names)}<span>${kind === 'drill' ? `Drill around ${pace}` : pace} steps a minute, listener ${ageText}</span>`;
+      $('recapText').innerHTML = `${esc(names)}<span>${kind === 'drill' ? `${soft ? 'Gentle drill' : 'Drill'} around ${pace}` : pace} steps a minute, listener ${ageText}</span>`;
       $('ask').classList.add('hidden'); $('recap').classList.remove('hidden');
       render(data);
       $('brief').classList.toggle('hidden', !data.briefing);
