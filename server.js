@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, normalize } from 'path';
 import { buildSession } from './lib/pipeline.js';
-import { buildPlaylist } from './lib/select.js';
+import { buildPlaylist, buildDrill } from './lib/select.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC = join(process.cwd(), 'public');
@@ -21,11 +21,12 @@ function parseRequest(url) {
   if (favorites.some(f => f.length > 60)) return { error: 'Artist names must be under 60 characters.' };
   if (!(target >= 60 && target <= 200)) return { error: 'Set a pace between 60 and 200 steps a minute.' };
   if (!AGES.has(age)) return { error: 'Choose an age range from the list.' };
-  return { favorites, target, age };
+  const mode = url.searchParams.get('mode') === 'drill' ? 'drill' : 'steady';
+  return { favorites, target, age, mode };
 }
 
 // Development only: replay recorded tracks so the page can be built without network access.
-async function fixtureSession({ favorites, target }, log) {
+async function fixtureSession({ favorites, target, mode }, log) {
   const tracks = JSON.parse(readFileSync(process.env.SECONDWIND_FIXTURE, 'utf8'));
   const artists = [...new Set(tracks.map(t => t.artist))];
   log({ stage: 'taste', text: `Asking Qloo who else fans of ${favorites.join(' and ')} love` });
@@ -35,7 +36,8 @@ async function fixtureSession({ favorites, target }, log) {
   log({ stage: 'tempo', text: `Measuring the beat of ${tracks.length} songs`, total: tracks.length });
   for (let i = 10; i <= tracks.length; i += 10) { await new Promise(r => setTimeout(r, 60)); log({ stage: 'tempo', progress: i, total: tracks.length }); }
   log({ stage: 'tempo', text: `Beat checked on ${tracks.length} songs` });
-  return { ...buildPlaylist(tracks, { target, favorites }), artistIssues: [], stats: { tracks: tracks.length, artists: artists.length } };
+  const build = mode === 'drill' ? buildDrill : buildPlaylist;
+  return { ...build(tracks, { target, favorites }), artistIssues: [], stats: { tracks: tracks.length, artists: artists.length } };
 }
 
 async function streamSession(req, res, url) {
@@ -55,9 +57,9 @@ async function streamSession(req, res, url) {
     // Send only what the page needs; previews are short-lived signed links.
     const pick = t => ({ id: t.id, artist: t.artist, title: t.title, preview: t.preview, step: t.step, bpm: t.bpm,
       confidence: t.confidence, note: t.note, reason: t.reason, duration: t.duration,
-      measured: t.est?.bpm || t.deezerBpm || null });
+      measured: t.est?.bpm || t.deezerBpm || null, blockPace: t.blockPace, block: t.block, cue: t.cue, volume: t.volume });
     send('result', {
-      target: parsed.target, favorites: parsed.favorites,
+      target: parsed.target, favorites: parsed.favorites, mode: result.mode, paces: result.paces,
       playlist: result.playlist.map(pick), held: result.held.map(pick),
       outOfRange: result.outOfRange.length, favoriteNotes: result.favoriteNotes, counts: result.counts,
       artistIssues: result.artistIssues, stats: result.stats,

@@ -134,6 +134,22 @@
   .song button { width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--ink); background: var(--surface); display: grid; place-items: center; }
   .song button svg { width: 18px; height: 18px; }
   .held .bpm { color: var(--muted); }
+  .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kinds label { position: relative; display: block; }
+  .kinds input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+  .kinds span { display: block; height: 100%; padding: 14px 18px; border: 2px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .kinds b { display: block; font-size: 1.05rem; }
+  .kinds small { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+  .kinds input:checked + span { border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+  .kinds input:checked + span b::before { content: ''; display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--tape); border: 2px solid var(--ink); margin-right: 8px; vertical-align: 1px; }
+  .kinds input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
+  li.cue { display: flex; align-items: center; gap: 10px; padding: 12px 0 0; font-weight: 700; }
+  li.cue::before { content: ''; flex: 0 0 28px; height: 10px; border-radius: 2px;
+    background: repeating-linear-gradient(-45deg, var(--tape) 0 6px, var(--ink) 6px 12px); }
+  li.cue.quiet { font-weight: 400; color: var(--muted); }
+  li.cue.quiet::before { background: var(--line); }
+  .vol { display: inline-block; margin-top: 4px; font-size: 0.85rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); }
+  .song.playing .vol.on { background: var(--tape); border-color: var(--ink); }
   .held-head { margin-top: 44px; }
   ul.groups { list-style: none; padding: 0; margin: 0; }
   .group { margin-bottom: 26px; }
@@ -158,6 +174,7 @@
     .pace-num { font-size: 3.4rem; }
     .song { grid-template-columns: 62px 1fr 52px; gap: 10px; }
     .add { flex-direction: column; }
+    .kinds { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -205,6 +222,16 @@
 
     <section class="ask">
       <fieldset>
+        <legend>What kind of walk?</legend>
+        <div class="kinds">
+          <label><input type="radio" name="mode" value="steady" checked><span><b>Steady walk</b><small>Every song close to their pace, from just under it to a little above</small></span></label>
+          <label><input type="radio" name="mode" value="drill"><span><b>Drill</b><small>Planned changes to call out: the pace shifts every two songs, the style flips, and the volume drops partway through some songs</small></span></label>
+        </div>
+      </fieldset>
+    </section>
+
+    <section class="ask">
+      <fieldset>
         <legend>Their age</legend>
         <div class="ages">
           <label><input type="radio" name="age" value="55_and_older" checked><span>Over 55</span></label>
@@ -248,6 +275,7 @@
     </div>
     <div class="play-all">
       <button type="button" id="playAll">Play the walk</button>
+      <button type="button" class="btn-quiet hidden" id="changeIt">Change it now</button>
       <button type="button" class="btn-quiet" id="copyList">Copy the list</button>
       <span class="tape" id="playTape" aria-hidden="true"></span>
     </div>
@@ -353,8 +381,32 @@
 
   // Audio
   const audio = $('audio');
-  let queue = [], current = null;
-  function stop() { audio.pause(); current = null; queue = []; markPlaying(); $('playAll').textContent = 'Play the walk'; $('playTape').classList.remove('moving'); }
+  audio.crossOrigin = 'anonymous'; // previews allow it, which lets the page change their volume
+  let queue = [], current = null, dropped = false, mode = 'steady';
+  // Volume runs through a gain stage because phones (iPhones especially) ignore audio.volume.
+  let ctx = null, gain = null;
+  function ensureGain() {
+    if (ctx === false) return;
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC(); gain = ctx.createGain();
+      ctx.createMediaElementSource(audio).connect(gain).connect(ctx.destination);
+      ctx.resume();
+    } catch { ctx = false; gain = null; }
+  }
+  function setVolume(v, seconds) {
+    if (gain) {
+      const now = ctx.currentTime;
+      gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(v, now + seconds);
+    } else { try { audio.volume = v; } catch {} }
+  }
+  function stop() {
+    audio.pause(); current = null; queue = []; markPlaying();
+    $('playAll').textContent = mode === 'drill' ? 'Play the drill' : 'Play the walk';
+    $('playTape').classList.remove('moving'); $('changeIt').classList.add('hidden');
+  }
   function markPlaying() {
     document.querySelectorAll('.song').forEach(el => {
       const on = current && el.dataset.id === String(current.id);
@@ -364,10 +416,25 @@
     });
   }
   function play(track) {
-    current = track; audio.src = track.preview; audio.play().catch(() => {}); markPlaying();
+    current = track; dropped = false; setVolume(1, 0.2);
+    audio.src = track.preview; audio.play().catch(() => {}); markPlaying();
     if (track.step) document.documentElement.style.setProperty('--beat', (120 / track.step).toFixed(3) + 's');
   }
   audio.addEventListener('ended', () => { if (queue.length) play(queue.shift()); else stop(); });
+  // Drill volume cue: partway into the song, ease the volume down and let the class adjust.
+  audio.addEventListener('timeupdate', () => {
+    if (!current || current.volume !== 'drop' || dropped || audio.currentTime < 12) return;
+    dropped = true; setVolume(0.3, 1.5);
+    const badge = document.querySelector(`.song[data-id="${current.id}"] .vol`);
+    if (badge) { badge.classList.add('on'); badge.textContent = 'Volume down now'; }
+  });
+  // The instructor can call a change early: jump to the first song of the next pace.
+  $('changeIt').addEventListener('click', () => {
+    if (!current) return;
+    const i = queue.findIndex(t => t.block !== current.block);
+    if (i < 0) return stop();
+    queue = queue.slice(i); play(queue.shift());
+  });
 
   function row(t, held) {
     const label = `${t.title} by ${t.artist}`;
@@ -377,6 +444,7 @@
       <div class="bpm">${tempo}${sub ? `<small>${sub}</small>` : ''}</div>
       <div><div class="title">${esc(t.title)}</div><div class="by">${esc(t.artist)}</div>
         ${!held && t.note && t.note.startsWith('Catalog tempo was') ? `<div class="why">Listed tempo was wrong; beat measured from the song</div>` : ''}
+        ${!held && t.volume === 'drop' ? `<span class="vol">Volume drops halfway</span><br>` : ''}
         ${!held ? `<a class="full" href="${serviceUrl(t)}" target="_blank" rel="noopener">Open in ${SERVICES[service].name}</a>` : ''}</div>
       <button type="button" ${t.preview ? '' : 'disabled'} aria-label="Play ${esc(label)}">${PLAY}</button>
     </li>`;
@@ -388,12 +456,20 @@
     lastTracks = tracks;
     const steps = r.playlist.map(t => t.step);
     const lo = Math.round(Math.min(...steps)), hi = Math.round(Math.max(...steps));
-    $('resultHead').textContent = r.playlist.length
-      ? `${r.playlist.length} songs for a ${r.target}-step walk`
-      : `No songs fit a ${r.target}-step walk yet`;
-    $('resultSummary').textContent = r.playlist.length
-      ? `They run from ${lo} to ${hi} steps a minute, starting just under the pace and finishing a little above it to draw each stride forward.`
-      : 'Try a pace a little faster or slower, or add another artist they love.';
+    mode = r.mode === 'drill' ? 'drill' : 'steady';
+    const drill = mode === 'drill';
+    const paceList = (r.paces || []).slice().sort((a, b) => a - b);
+    const joinAnd = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : String(a[0] ?? '');
+    const changes = r.playlist.filter((t, i) => i && t.cue && t.cue.kind === 'pace').length;
+    const drops = r.playlist.filter(t => t.volume === 'drop').length;
+    $('resultHead').textContent = !r.playlist.length
+      ? `No songs fit a ${r.target}-step ${drill ? 'drill' : 'walk'} yet`
+      : drill ? `${r.playlist.length} songs for a drill around ${r.target} steps a minute`
+      : `${r.playlist.length} songs for a ${r.target}-step walk`;
+    $('resultSummary').textContent = !r.playlist.length
+      ? 'Try a pace a little faster or slower, or add another artist they love.'
+      : drill ? `The pace changes ${changes} times between ${joinAnd(paceList)} steps a minute, and the volume drops ${drops} times. Call each change as its song starts; the yellow lines below are the cues.`
+      : `They run from ${lo} to ${hi} steps a minute, starting just under the pace and finishing a little above it to draw each stride forward.`;
     $('favNotes').innerHTML = (r.favoriteNotes || []).map(n => `<p class="note">${esc(n.note)}</p>`).join('');
     // The funnel: most of the agent's work is saying no, so show it.
     const c = r.counts;
@@ -402,12 +478,14 @@
       const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
       $('funnel').innerHTML = [
         [c.checked, `songs checked${artists ? `, from ${plural(artists, 'artist', 'artists')} Qloo matched to their taste` : ''}`, ''],
-        [c.outOfRange, `outside a ${r.target}-step pace`, 'out'],
+        [c.outOfRange, drill ? `outside the drill's paces of ${joinAnd(paceList)} steps a minute` : `outside a ${r.target}-step pace`, 'out'],
         [c.held, `held out because the beat sways or cannot be trusted`, 'out'],
-        [c.kept, c.fit > c.kept ? `kept for the walk, the best of ${c.fit} that fit` : `kept for the walk`, 'kept'],
+        [c.kept, c.fit > c.kept ? `kept for the ${drill ? 'drill' : 'walk'}, the best of ${c.fit} that fit` : `kept for the ${drill ? 'drill' : 'walk'}`, 'kept'],
       ].map(([n, label, cls]) => `<li class="${cls}"><span class="n">${n}</span><span>${esc(label)}</span></li>`).join('');
     } else $('funnel').innerHTML = '';
-    $('playlist').innerHTML = r.playlist.map(t => row(t, false)).join('');
+    // In a drill, each song carries the cue the instructor calls as it starts.
+    const cueRow = t => t.cue ? `<li class="cue${t.cue.kind === 'hold' ? ' quiet' : ''}">${esc(t.cue.text)}</li>` : '';
+    $('playlist').innerHTML = r.playlist.map(t => (drill ? cueRow(t) : '') + row(t, false)).join('');
     // Group held songs under their reason so the judgment reads at a glance.
     const groups = new Map();
     r.held.forEach(t => { if (!groups.has(t.reason)) groups.set(t.reason, []); groups.get(t.reason).push(t); });
@@ -416,7 +494,10 @@
         <ul class="songs">${list.map(t => row(t, true)).join('')}</ul></li>`).join('');
     $('playAll').disabled = !r.playlist.some(t => t.preview);
     $('copyList').onclick = async () => {
-      const text = `Second Wind walk, ${r.target} steps a minute\n` + r.playlist.map((t, i) => `${i + 1}. ${t.title} by ${t.artist} (${Math.round(t.step)})`).join('\n');
+      const text = drill
+        ? `Second Wind drill around ${r.target} steps a minute\n` + r.playlist.map((t, i) =>
+            `${i + 1}. ${t.cue ? t.cue.text.toUpperCase() + ': ' : ''}${t.title} by ${t.artist} (${Math.round(t.step)})${t.volume === 'drop' ? ', volume down halfway' : ''}`).join('\n')
+        : `Second Wind walk, ${r.target} steps a minute\n` + r.playlist.map((t, i) => `${i + 1}. ${t.title} by ${t.artist} (${Math.round(t.step)})`).join('\n');
       try { await navigator.clipboard.writeText(text); $('copyList').textContent = 'Copied'; }
       catch { $('copyList').textContent = 'Copy failed'; }
       setTimeout(() => { $('copyList').textContent = 'Copy the list'; }, 2500);
@@ -425,14 +506,17 @@
     document.querySelectorAll('.song button').forEach(b => b.addEventListener('click', () => {
       const t = tracks.get(b.closest('.song').dataset.id);
       if (current && current.id === t.id) return stop();
-      queue = []; play(t); $('playTape').classList.add('moving');
+      ensureGain(); queue = []; play(t); $('playTape').classList.add('moving');
     }));
     $('playAll').onclick = () => {
       if (current) return stop();
+      ensureGain();
       const list = r.playlist.filter(t => t.preview);
       queue = list.slice(1); play(list[0]);
       $('playAll').textContent = 'Stop'; $('playTape').classList.add('moving');
+      $('changeIt').classList.toggle('hidden', !drill);
     };
+    $('playAll').textContent = drill ? 'Play the drill' : 'Play the walk';
     $('resultHead').setAttribute('tabindex', '-1'); $('resultHead').focus();
   }
 
@@ -455,7 +539,8 @@
     order.forEach(s => $(s).classList.remove('done', 'active'));
     activate('s-taste'); $('go').disabled = true; $('go').textContent = 'Building the walk';
     const age = new FormData($('ask')).get('age');
-    const qs = new URLSearchParams({ favorites: favorites.join('|'), pace, age });
+    const kind = new FormData($('ask')).get('mode') === 'drill' ? 'drill' : 'steady';
+    const qs = new URLSearchParams({ favorites: favorites.join('|'), pace, age, mode: kind });
     source = new EventSource('/api/session?' + qs);
     const end = () => { source.close(); source = null; $('go').disabled = false; $('go').textContent = 'Build the walk again'; };
     source.addEventListener('progress', ev => {
@@ -472,7 +557,7 @@
       activate('s-pick'); finishSteps(); end();
       const ageText = { '55_and_older': 'over 55', '36_to_55': '36 to 55', '35_and_younger': '35 or younger' }[age];
       const names = favorites.length > 1 ? favorites.slice(0, -1).join(', ') + ' and ' + favorites[favorites.length - 1] : favorites[0];
-      $('recapText').innerHTML = `${esc(names)}<span>${pace} steps a minute, listener ${ageText}</span>`;
+      $('recapText').innerHTML = `${esc(names)}<span>${kind === 'drill' ? `Drill around ${pace}` : pace} steps a minute, listener ${ageText}</span>`;
       $('ask').classList.add('hidden'); $('recap').classList.remove('hidden');
       render(JSON.parse(ev.data));
     });

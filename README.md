@@ -14,9 +14,11 @@ Second Wind takes a few favorite artists and a walking pace, then builds a playl
 4. **Refuses songs that would trip someone up.** Ballads in a swaying 12/8 or waltz feel ("Crazy", "These Arms of Mine") can be counted two ways, so steps land unevenly. Those are held out, and the page says why for every one.
 5. **Builds the walk.** Songs that fit the pace are ordered from just under the target to just above it, with the listener's named artists first. If a favorite cannot fit, it says so plainly instead of dropping them.
 
+**Drill mode, for the instructor.** In the Parkinson's classes this was built with, the instructor changes the music on purpose, switching songs and dropping the volume, so walkers practice adapting mid-stride. Drill mode plans those changes: the pace moves every two songs (for a 100-step class: 100, 110, 100, 90), the style flips between favorites inside each pair, and the volume eases down partway through some songs. Each change comes with a cue to call out, and a "Change it now" button jumps ahead when the instructor wants to surprise the room. Swaying songs are held out of a drill just as strictly: it should test how someone adapts, never their balance.
+
 Without Qloo, this is a tempo filter over a generic catalog. With Qloo, it is music this particular person will want to keep walking to.
 
-**Where this goes next:** the same engine serves anyone who moves to a set pace, from stroke and cardiac rehabilitation to runners and cyclists (paces up to 200 steps a minute already work), with the safety rules kept strict wherever someone's balance is at stake.
+**Where this goes next:** any instructor who runs a class to music, from stroke and cardiac rehab to senior fitness, then spin and running groups (paces up to 200 already work), and eventually any planned workout, block by block.
 
 ## Try it
 
