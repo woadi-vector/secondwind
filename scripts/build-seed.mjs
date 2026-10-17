@@ -15,6 +15,9 @@ const SEEDS = [
   'ABBA', 'Bee Gees', 'Willie Nelson', 'Neil Diamond', 'Tony Bennett', 'Louis Armstrong',
   'Earth, Wind & Fire', 'Simon & Garfunkel', 'Creedence Clearwater Revival', 'Selena', 'Marvin Gaye',
   'Hank Williams', 'Tina Turner',
+  // 70s rock, added after the Parkinson's class said their music runs from the 50s into 70s rock.
+  'Eagles', 'Queen', 'Elton John', 'Boston', 'Journey', 'Foreigner', 'Heart', 'Steely Dan',
+  'Tom Petty and the Heartbreakers', 'Lynyrd Skynyrd',
 ];
 const OUT = 'data/tempo-seed.json';
 const TRACKS_PER_ARTIST = 8;
@@ -28,7 +31,13 @@ const NAMES_FILE = 'cache/seed-artists.json';
 const BUDGET_MS = Number(process.env.BUDGET_MINUTES || 0) * 60000; // stop cleanly after this long (0 = no limit)
 const started = Date.now();
 const names = new Map(existsSync(NAMES_FILE) ? JSON.parse(readFileSync(NAMES_FILE, 'utf8')) : []);
-if (!names.size) for (const seed of SEEDS) {
+// Seeds already expanded through Qloo are remembered, so adding a seed later expands only the new one.
+const EXPANDED_FILE = 'cache/seed-expanded.json';
+const expanded = new Set(existsSync(EXPANDED_FILE) ? JSON.parse(readFileSync(EXPANDED_FILE, 'utf8')) : (names.size ? SEEDS.slice(0, 25) : []));
+for (const seed of SEEDS) {
+  if (expanded.has(seed)) continue;
+  names.set(seed.toLowerCase(), seed);
+  expanded.add(seed);
   for (const age of ['55_and_older', '36_to_55']) {
     try {
       const { artists } = await blendedArtists([seed], { age, perSeed: 15 });
@@ -37,6 +46,7 @@ if (!names.size) for (const seed of SEEDS) {
   }
 }
 mkdirSync('cache', { recursive: true }); writeFileSync(NAMES_FILE, JSON.stringify([...names]));
+writeFileSync(EXPANDED_FILE, JSON.stringify([...expanded]));
 console.log(`${names.size} artists to cover; ${Object.keys(table).length} songs already in the table`);
 
 const DONE_FILE = 'cache/seed-done.json';
